@@ -6,8 +6,7 @@ namespace Components
 {
     public class Layer : ILayer
     {
-        public long NumberId { get; set; }
-        public double Byes { get; set; }
+        private readonly IActivation _activation;
 
         public int InDim, OutDim;
         public float[] W; // Матрица весов (OutDim * InDim)
@@ -17,10 +16,11 @@ namespace Components
         private float[] _lastInput;
         private float[] _lastOutput;
 
-        public Layer(int inDim, int outDim, Func<float> init)
+        public Layer(int inDim, int outDim, Func<float> init, IActivation activation)
         {
             InDim = inDim;
             OutDim = outDim;
+            _activation = activation;   
 
             W = new float[outDim * inDim];
             B = new float[outDim];
@@ -51,7 +51,6 @@ namespace Components
             float[] localW = W;
             float[] localInput = _lastInput;
             float[] localB = B;
-            float[] localLastOutput = _lastOutput; // Пишем потоками сюда!
 
             Parallel.For(0, OutDim, o =>
             {
@@ -80,13 +79,12 @@ namespace Components
                     sum += localW[row + i] * localInput[i];
                 }
 
-                // Записываем в обычный плоский массив. Никаких ref struct ограничений!
-                localLastOutput[o] = MathF.Max(0f, sum);
             });
-
             // 2. Когда все потоки завершились, мы в один приход копируем данные наружу.
             // Метод CopyTo для массивов оптимизирован на уровне ядра CLR (через memmove) и выполняется мгновенно.
             _lastOutput.CopyTo(output);
+            _activation.Activate(_lastOutput.AsSpan());
+
         }
 
         public void Backward(ReadOnlySpan<float> outputGradient, Span<float> inputGradient, float learningRate)
@@ -102,6 +100,7 @@ namespace Components
             // так как outputGradient тоже ref struct и не пойдет в Parallel.For.
             float[] localOutGrad = new float[OutDim];
             outputGradient.CopyTo(localOutGrad);
+            _activation.ApplyDerivative(localOutGrad, _lastOutput);
 
             float[] localW = W;
             float[] localInput = _lastInput;
@@ -110,7 +109,7 @@ namespace Components
 
             Parallel.For(0, OutDim, o =>
             {
-                float neuronGradient = localLastOut[o] > 0f ? localOutGrad[o] : 0f;
+                float neuronGradient = localOutGrad[o];
 
                 if (neuronGradient == 0f) return;
 

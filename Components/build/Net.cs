@@ -34,17 +34,17 @@ namespace Components
         public Net() { }
 
         // Конструктор инициализации новой сети
-        public Net(int inputDim, List<int> hiddenLayers, int outputDim, Func<float> init)
+        public Net(int inputDim, List<int> hiddenLayers, int outputDim, Func<float> init, IActivation activation)
         {
             int currentInDim = inputDim;
 
             // Строим цепочку слоев
             foreach (int outDim in hiddenLayers)
             {
-                _layers.Add(new Layer(currentInDim, outDim, init));
+                _layers.Add(new Layer(currentInDim, outDim, init, activation));
                 currentInDim = outDim;
             }
-            _layers.Add(new Layer(currentInDim, outputDim, init));
+            _layers.Add(new Layer(currentInDim, outputDim, init, activation));
 
             AllocateInternalBuffers(inputDim);
         }
@@ -66,10 +66,10 @@ namespace Components
 
         public void Predict(ReadOnlySpan<float> input, Span<float> output)
         {
-            if (_layers.Count == 0) return;
+            if (_layers.Count() == 0) return;
 
             // Если слой всего один
-            if (_layers.Count == 1)
+            if (_layers.Count() == 1)
             {
                 _layers[0].Forward(input, output);
                 return;
@@ -78,7 +78,7 @@ namespace Components
             // Прямой проход сквозь цепочку буферов
             _layers[0].Forward(input, _forwardBuffers[0]);
 
-            for (int i = 1; i < _layers.Count - 1; i++)
+            for (int i = 1; i < _layers.Count() - 1; i++)
             {
                 _layers[i].Forward(_forwardBuffers[i - 1], _forwardBuffers[i]);
             }
