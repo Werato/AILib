@@ -8,7 +8,8 @@ namespace Components
 {
     public partial interface ILayer
     {
-        public float Forvard(float[] input);
-        public float Backward(float[] outputGradient, float learningRate);
+        public void Forward(ReadOnlySpan<float> input, Span<float> output);
+
+        void Backward(ReadOnlySpan<float> outputGradient, Span<float> inputGradient, float learningRate);
     }
 }
